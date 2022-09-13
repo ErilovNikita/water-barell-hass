@@ -1,0 +1,103 @@
+template:
+  # Сенсор уровня воды
+  - sensor:
+      - unique_id: barrel_water_level
+        attributes:
+          friendly_name: "Уровень воды"
+        icon: mdi:water
+        unit_of_measurement: "%"
+        state: >
+          {% set max_meter = 0.02 | float %}
+          {% set min_meter = 0.23 | float %}
+          {% set water_meter = states('sensor.ultrasonic_sensor') | float %}
+
+          {% if water_meter > min_meter %}
+            {% set water_meter = min_meter %} 
+          {% endif %}
+
+
+          {% set max = min_meter - max_meter %}
+          {% set current =  water_meter - max_meter%}
+          {% set invert_current =  max - current %}
+
+          {{ ((invert_current * 100) / max) | int }}
+
+  # Основной сенсор показывающий информацию по бочке и ее статус
+  - sensor:
+      - unique_id: barrel
+        attributes:
+          friendly_name: "Статус"
+        icon: mdi:barrel
+        state: >
+          {% if states('switch.barrel_filling') == 'on' %}
+            {{ "Наполняется" }} 
+          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int >= 90 %}
+            {{ "Заполнена" }} 
+          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int > 50 and states('sensor.template_barrel_water_level') | int < 90 %}
+            {{ "Больше половины" }} 
+          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 50 and states('sensor.template_barrel_water_level') | int > 15 %}
+            {{ "Меньше половины" }} 
+          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 15 %}
+            {{ "Очень мало" }} 
+          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 5 %}
+            {{ "Пусто" }} 
+          {% else %}
+            {{ "Неизвестно" }} 
+          {% endif %}
+
+# Виртуальный выключатель насосов для набора воды в бочку
+switch:
+  - platform: template
+    switches:
+      barrel_filling:
+        friendly_name: "Насосы наполнения"
+        value_template: "{{ is_state('switch.domofon_automatically_open', 'on') }}"
+        turn_on:
+          service: switch.turn_on
+          data:
+            entity_id: switch.domofon_automatically_open
+        turn_off:
+          service: switch.turn_off
+          data:
+            entity_id: switch.domofon_automatically_open
+
+# Выключатель для активации автоматизации по наполению бочки
+input_boolean:
+  barrel_auto_level:
+    name: Поддержка уровня воды
+    icon: mdi:water-plus
+
+# Слайдер для минимального значения для наполнения бочки
+input_number:
+  barrel_min_level:
+    name: Мин. уровень
+    initial: 20
+    min: 0
+    max: 100
+    step: 5
+
+# Автоматизация для автоматического наполнения бочки
+automation:
+  alias: '[Бочка] Автоматическое наполнение'
+  mode: single
+  trigger:
+    - platform: template
+      value_template: >-
+        {{ states("sensor.template_barrel_water_level") | int <= states("input_number.barrel_min_level") | int }}
+  condition:
+    - condition: state
+      entity_id: input_boolean.barrel_auto_level
+      state: 'on'
+  action:
+    - service: switch.turn_on
+      data: {}
+      target:
+        entity_id: switch.barrel_filling
+    - wait_for_trigger:
+      - platform: template
+        value_template: >-
+          {{ states("sensor.template_barrel_water_level") | int >= 90 }}
+    - service: switch.turn_off
+      data: {}
+      target:
+        entity_id: switch.barrel_filling
