@@ -4,7 +4,7 @@ template:
       - unique_id: barrel_water_level
         attributes:
           friendly_name: "Уровень воды"
-        icon: mdi:water
+        icon: mdi:car-coolant-level
         unit_of_measurement: "%"
         state: >
           {% set max_meter = 0.02 | float %}
@@ -29,37 +29,21 @@ template:
           friendly_name: "Статус"
         icon: mdi:barrel
         state: >
-          {% if states('switch.barrel_filling') == 'on' %}
+          {% if states('switch.nasosy') == 'on' %}
             {{ "Наполняется" }} 
-          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int >= 90 %}
+          {% elif states('switch.nasosy') == 'off' and states('sensor.template_barrel_water_level') | int >= 90 %}
             {{ "Заполнена" }} 
-          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int > 50 and states('sensor.template_barrel_water_level') | int < 90 %}
+          {% elif states('switch.nasosy') == 'off' and states('sensor.template_barrel_water_level') | int > 50 and states('sensor.template_barrel_water_level') | int < 90 %}
             {{ "Больше половины" }} 
-          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 50 and states('sensor.template_barrel_water_level') | int > 15 %}
+          {% elif states('switch.nasosy') == 'off' and states('sensor.template_barrel_water_level') | int < 50 and states('sensor.template_barrel_water_level') | int > 15 %}
             {{ "Меньше половины" }} 
-          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 15 %}
+          {% elif states('switch.nasosy') == 'off' and states('sensor.template_barrel_water_level') | int < 15 %}
             {{ "Очень мало" }} 
-          {% elif states('switch.barrel_filling') == 'off' and states('sensor.template_barrel_water_level') | int < 5 %}
+          {% elif states('switch.nasosy') == 'off' and states('sensor.template_barrel_water_level') | int < 5 %}
             {{ "Пусто" }} 
           {% else %}
             {{ "Неизвестно" }} 
           {% endif %}
-
-# Виртуальный выключатель насосов для набора воды в бочку
-switch:
-  - platform: template
-    switches:
-      barrel_filling:
-        friendly_name: "Насосы наполнения"
-        value_template: "{{ is_state('switch.pump', 'on') }}"
-        turn_on:
-          service: switch.turn_on
-          data:
-            entity_id: switch.pump
-        turn_off:
-          service: switch.turn_off
-          data:
-            entity_id: switch.pump
 
 # Выключатель для активации автоматизации по наполению бочки
 input_boolean:
@@ -70,8 +54,18 @@ input_boolean:
 # Слайдер для минимального значения для наполнения бочки
 input_number:
   barrel_min_level:
+    icon: mdi:wave
     name: Мин. уровень
     initial: 20
+    min: 0
+    max: 100
+    step: 5
+
+# Слайдер для максимального значения для наполнения бочки
+  barrel_max_level:
+    icon: mdi:waves
+    name: Макс. уровень
+    initial: 100
     min: 0
     max: 100
     step: 5
@@ -92,12 +86,12 @@ automation:
     - service: switch.turn_on
       data: {}
       target:
-        entity_id: switch.barrel_filling
+        entity_id: switch.nasosy
     - wait_for_trigger:
       - platform: template
         value_template: >-
-          {{ states("sensor.template_barrel_water_level") | int >= 90 }}
+          {{ states("sensor.template_barrel_water_level") | int >= states("input_number.barrel_max_level") | int }}
     - service: switch.turn_off
       data: {}
       target:
-        entity_id: switch.barrel_filling
+        entity_id: switch.nasosy
