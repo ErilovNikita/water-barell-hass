@@ -1,5 +1,5 @@
 # Проект для автоматизации работы резервуара с водой
-![sc](https://badgen.net/badge/Version/v1.0/green)
+![sc](https://badgen.net/github/release/ErilovNikita/water-barell-hass)
 
 Проект создан для автоматизаци контроля уровня воды в бочке, а так же для автоматического наполнения ее без участия человека.
 
